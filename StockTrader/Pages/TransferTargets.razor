@@ -1,0 +1,127 @@
+﻿@page "/Targets"
+@using StockTrader.Models;
+@using StockTrader.Pages.Components;
+@using System.Threading;
+
+<div class="content-body">
+    <h2>Sell Stocks</h2>
+    <p>Use this page to manage the stocks you have in your portofolio</p>
+    <div class="input-outer">
+        <div class="input-number">
+            <p>Input the trigger-point of stocks you want to sell</p>
+            <input type="number" step="50" @bind="startPrice" />
+            <div class="increment-options">
+                    <button class="btn btn-primary" @onclick="e => this.IncrementStartPrice(50)">+50</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementStartPrice(100)">+100</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementStartPrice(1000)">+1000</button>
+            </div>
+        </div>
+        <div class="input-number">
+            <p>Input the stop-loss of stock you want to sell</p>
+            <input type="number" step="50" @bind="binPrice" />
+            <div class="increment-options">
+                    <button class="btn btn-primary" @onclick="e => this.IncrementBinPrice(50)">+50</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementBinPrice(100)">+100</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementBinPrice(1000)">+1000</button>
+            </div>
+        </div>
+    </div>
+    <div class="button--layer">
+        <button class="btn btn-primary" @onclick="SellStocks">Sell Stocks</button>
+        <button class="btn btn-primary" @onclick="RefreshStocks">Refresh Stocks</button>
+        <button class="btn btn-primary" @onclick="ClearExpiredStocks">Clear Expired Stocks</button>
+    </div>
+    <TargetsCount Purchases=@stocks.SymbolInfo OrderCount=@stocks.Credits TotalTargetsCount="stocks.Total"/>
+    <div>
+        <input type="radio" value=true id="Allow" @onchange="RadioSelection" checked=@RadioValue />
+        <label for="Allow">Allow API Calls</label>
+        <input type="radio" value=false id="Block" @onchange="RadioSelection" checked=@(!RadioValue) />
+        <label for="Block">Block API Calls</label>
+    </div>
+    <PurchaseView Purchases=@stocks.SymbolInfo />
+</div>
+
+@code {
+    public int startPrice { get; set; }
+    public int binPrice { get; set; }
+    public string token { get; set; }
+    private bool RadioValue { get; set; } = true;
+
+    public SymbolSearchModel stocks = new SymbolSearchModel()
+    {
+        SymbolInfo = new List<PurchaseViewModel>()
+    };
+
+    private async Task SellStocks()
+    {
+        token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+
+        foreach (var stock in stocks.SymbolInfo)
+        {
+            if (RadioValue && stock.Pending == false && stock.Status == "highest")
+            {
+                stock.Status = await ApiGateway.SellStock(stock.TradeId, stock.ItemData.stockId, token, startPrice, binPrice);
+                this.StateHasChanged();
+                if (stock.Status != "Selling")
+                {
+                    break;
+                }
+                await Task.Delay(1000);
+            }
+        }
+    }
+
+    private async Task ClearExpiredStocks()
+    {
+        var token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+        await ApiGateway.ClearExpiredStocks(token, stocks.SymbolInfo);
+        await RefreshStocks();
+    }
+
+    private async Task RefreshStocks()
+    {
+        await UpdateSellStocks();
+        this.StateHasChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        var timer = new Timer(new TimerCallback(async _ =>
+        {
+            if (stocks.SymbolInfo.Count != 0)
+            {
+                if (stocks.SymbolInfo.Max(x => x.TimeRemaining != -1))
+                {
+                    await UpdateSellStocks();
+                    await InvokeAsync(() =>
+                    {
+                        StateHasChanged();
+                    });
+                }
+            }
+        }), null, 1000, 10000);
+    }
+
+    protected async Task UpdateSellStocks()
+    {
+        token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+
+        stocks = await ApiGateway.GetSellStocks(token);
+    }
+
+    void RadioSelection(ChangeEventArgs args)
+    {
+        RadioValue = args.Value.ToString() == "true";
+        this.StateHasChanged();
+    }
+
+    void IncrementStartPrice(int increase)
+    {
+        startPrice += increase;
+    }
+
+    void IncrementBinPrice(int increase)
+    {
+        binPrice += increase;
+    }
+}

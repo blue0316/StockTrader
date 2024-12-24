@@ -1,0 +1,47 @@
+﻿@page "/transfers"
+@using StockTrader.Models;
+@using StockTrader.Pages.Components;
+
+<div class="content-body">
+    <h2>Stocks List</h2>
+    <p>Use this page to manage the stocks you are selling</p>
+    <div class="input-outer">
+        <div class="input-number">
+            <p>Input the trigger-point of stocks you want to sell</p>
+            <input type="number" @bind="startPrice" />
+        </div>
+        <div class="input-number">
+            <p>Input the stop-loss of stock you want to sell</p>
+            <input type="number" @bind="binPrice" />
+        </div>
+    </div>
+    <div class="button--layer">
+        @*<button class="btn btn-primary" @onclick="SellStocks">Sell Non-listed Stocks</button>*@
+        <button class="btn btn-primary" @onclick="FetchTransferList">Refresh Stocks</button>
+    </div>
+
+    <div class="targets-view">
+        <TargetsCount Purchases=@transferList.SymbolInfo OrderCount=@transferList.Credits TotalTargetsCount="transferList.Total" />
+        <PurchaseView Purchases=@transferList.SymbolInfo FullScreen="Partial" />
+    </div>
+
+</div>
+
+@code {
+    public int startPrice { get; set; }
+    public int binPrice { get; set; }
+    public string token { get; set; }
+
+    public SymbolSearchModel transferList = new SymbolSearchModel
+        {
+            SymbolInfo = new List<PurchaseViewModel>()
+        };
+
+    private async void FetchTransferList()
+    {
+        token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+        transferList = await ApiGateway.GetTransferList(token);
+
+        this.StateHasChanged();
+    }
+}

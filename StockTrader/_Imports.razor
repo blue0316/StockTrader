@@ -1,0 +1,15 @@
+﻿@using System.Net.Http
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@using StockTrader
+@using StockTrader.Shared
+@using Microsoft.AspNetCore.ProtectedBrowserStorage
+@using StockTrader.APIHandler.Interfaces
+@using StockTrader.Models.ModelBuilders
+@inject ProtectedSessionStorage ProtectedSessionStore
+@inject IApiGateway ApiGateway
+@inject IStockIdModelBuilder _stockIdModelBuilder 

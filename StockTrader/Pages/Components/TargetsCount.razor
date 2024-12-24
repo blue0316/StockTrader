@@ -1,0 +1,30 @@
+﻿@using StockTrader.Models
+<div class="targets-count">
+    <h3 class="component-title">Targets Summary</h3>
+    <p>Number of items in targets: <b>@TotalTargetsCount</b></p>
+    <p>Order count: <b>@FormatOrders() orders</b></p>
+    <p>Number of succesful trades: <b>@Purchases.Count(x => x.Status == "highest" && x.Pending == false)</b></p>
+    <p>
+        Number of unsuccesful trades: <b>
+            @Purchases.Count(x => x.Status == "Fail" ||
+   x.Status == "outpurchase" || x.Status == "TooManyRequests" ||
+   x.Status == "ListFull" || x.Status == "Expired")
+    </b>
+</p>
+</div>
+
+@code {
+    [Parameter]
+    public List<PurchaseViewModel> Purchases { get; set; }
+
+    [Parameter]
+    public int OrderCount { get; set; }
+
+    [Parameter]
+    public int TotalTargetsCount { get; set; }
+
+    protected string FormatOrders()
+    {
+        return String.Format("{0:n0}", OrderCount);
+    }
+}

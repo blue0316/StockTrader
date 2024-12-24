@@ -1,0 +1,178 @@
+﻿@page "/stockviewer"
+
+@using Microsoft.AspNetCore.Mvc;
+@using Microsoft.AspNetCore.Mvc.RazorPages;
+@using Microsoft.AspNetCore.Mvc.Rendering;
+@using Newtonsoft.Json;
+@using StockTrader.Models;
+@using System;
+@using System.Collections.Generic;
+
+<script src="~/lib/bootstrap/dist/js/bootstrap-datepicker.js"></script>
+<link href="~/lib/bootstrap/dist/css/bootstrap-datepicker3.standalone.css" rel="stylesheet" />
+
+<script src="https://code.highcharts.com/stock/highstock.js"></script>
+<script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+
+<script>
+    $.fn.datepicker.defaults.format = "dd/mm/yyyy";
+</script>
+
+<script>
+    $('.input-daterange input').each(function () {
+        $(this).datepicker('clearDates');
+    });
+</script>
+
+<script>
+    $.getJSON('/aapl-ohlc.json', function (data) {
+
+        // create the chart
+        Highcharts.stockChart('container',
+            {
+                rangeSelector:
+                {
+                    selected: 2
+                },
+                title:
+                {
+                    text: '@TvHist.Ticker - @TvHist.TimeFrame'
+                },
+                series:
+                    [
+                        {
+                            type: 'candlestick',
+                            name: '@TvHist.Ticker Stock Price',
+                            data: @ChartSeriesData,
+                            dataGrouping:
+                            {
+                                units:
+                                    [
+                                        [
+                                            'week', // unit name
+                                            [1] // allowed multiples
+                                        ],
+                                        //[
+                                        //    'month',
+                                        //    [1, 2, 3, 4, 6]
+                                        //]
+                                    ]
+                            }
+                        }]
+            });
+    });
+
+</script>
+
+<h1>Stock Viewer</h1>
+<p>Prices should be extracted from TradingView</p>
+
+<div class="row">
+    <div class="col-md-4">
+        <form class="form-group" method="post">
+            <div class="form-group">
+                <label asp-for="TvHist.Ticker">Stock: </label>
+                <select class="form-control" asp-for="TvHist.Ticker" asp-items="Model.Tickers" style="font-size: 0.8rem"></select>
+            </div>
+            <div class="form-group">
+                <label>Period:</label>
+                <div class="input-group input-daterange" data-provide="datepicker">
+                    <input asp-for="TvHist.DateFrom" class="form-control" type="text" placeholder="Start Date" style="text-align:left; font-size: 0.8rem"/>
+                    <div class="input-group-addon">
+                        <text style="padding:6px 5px">to</text>
+                    </div>
+                    <input asp-for="TvHist.DateTo" class="form-control" type="text" placeholder="End Date" style="text-align:left; font-size: 0.8rem" />
+                </div>
+                <span asp-validation-for="TvHist.DateFrom" class="text-danger"></span>
+                <span asp-validation-for="TvHist.DateTo" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="TvHist.TimeFrame">Granularity</label>
+                <select class="form-control" asp-for="TvHist.TimeFrame" asp-items="Model.Periods" style="font-size: 0.8rem"></select>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Display Stock</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-md-8">
+        <div id="container" style="height: 400px; min-width: 310px;">
+            <p>chart will go here</p>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    private readonly IStockDataProvider _stockData;
+    private readonly IHtmlHelper _htmlHelper;
+
+    /// <summary>
+    /// Variable to hold a list of stock price data
+    /// </summary>
+    private List<StockData> _prices;
+
+    public string ChartSeriesData;
+
+    [BindProperty]
+    public TvHistoryConfig TvHist { get; set; }
+
+    public IEnumerable<SelectListItem> Periods { get; set; } // used for dropdown select options
+    public IEnumerable<SelectListItem> Tickers { get; set; } // used for dropdown select options
+
+    public StockViewer(IHtmlHelper htmlHelper, IStockDataProvider stockDataProvider)
+    {
+        this._stockData = stockDataProvider;
+        this._htmlHelper = htmlHelper;
+        this.TvHist = new TvHistoryConfig();
+    }
+
+    protected override void OnInitialized()
+    {
+        
+    }
+    public void OnGet()
+    {
+        this.ResetFormEnumLists();
+        this._prices = this._stockData.GetPricesAsync(this.TvHist).Result;
+        this.ChartSeriesData = GetChartSeriesData(_prices);
+    }
+/*
+    public IActionResult OnPost()
+    {
+        this.ResetFormEnumLists();
+        this._prices = this._stockData.GetPricesAsync(this.TvHist).Result;
+
+        this.ChartSeriesData = GetChartSeriesData(_prices);
+    }
+*/
+    private void ResetFormEnumLists()
+    {
+        this.Periods = this._htmlHelper.GetEnumSelectList<TimeFrame>();
+        this.Tickers = this._htmlHelper.GetEnumSelectList<Ticker>();
+    }
+
+    /// <summary>
+    /// Gets chart data series in json
+    /// </summary>
+    /// <param name="stockData"></param>
+    /// <returns></returns>
+    private string GetChartSeriesData(List<StockData> stockData)
+    {
+        List<List<double>> stockEntries = new List<List<double>>();
+
+        foreach (StockData e in stockData)
+        {
+            stockEntries.Add(
+                new List<double> {
+                    ((DateTimeOffset)e.Date).ToUnixTimeMilliseconds(),
+                    e.Open,
+                    e.High,
+                    e.Low,
+                    e.Close});
+        }
+
+        return JsonConvert.SerializeObject(stockEntries);
+    }
+}

@@ -1,0 +1,70 @@
+﻿@using StockTrader.Models;
+@using StockTrader.Models.ModelBuilders;
+@using System.Threading;
+
+<div class="purchaseView-outer">
+    @if (Extend)
+    {
+        <div class="table table-centre">
+            <table>
+                <tr>
+                    <th>Stock Name</th>
+                    <th>Stock Id</th>
+                    <th>Delete</th>
+                </tr>
+                @{ int i = 0;}
+                @foreach (var stockId in Stocks)
+                {
+                    int index = i;
+                    <tr>
+                        <th>@stockId.StockName</th>
+                        <th @onclick="() => ParentOnClickFunction.InvokeAsync(stockId.StockId)">
+                            @stockId.StockId
+                        </th>
+                        <th @onclick="() => RemoveStockFromStore(index)">Delete @index</th>
+                    </tr>
+                    { i++; }
+                }
+            </table>
+        </div>
+        <div class="input-outer">
+            <div class="input-number">
+                <p>Input the name of a stock to add to the local store</p>
+                <input type="search" @bind="StockName" />
+            </div>
+            <div class="input-number">
+                <p>Input the ID of the stock to add to the local store</p>
+                <input type="number" @bind="StockId" />
+            </div>
+            <button class="btn btn-primary" @onclick="AddStockToStore">Insert</button>
+        </div>
+    }
+</div>
+
+@code{
+    [Parameter]
+    public EventCallback<int> ParentOnClickFunction { get; set; }
+
+    [Parameter]
+    public bool Extend { get; set; } = true;
+
+    public string StockName { get; set; }
+    public int StockId { get; set; }
+    public List<StockIdModel> Stocks { get; set; } = new List<StockIdModel>();
+
+    protected override void OnInitialized()
+    {
+        Stocks = _stockIdModelBuilder.ReadStoredStocks();
+    }
+
+    private void AddStockToStore()
+    {
+        Stocks = _stockIdModelBuilder.AddStockIdToStore(StockName, StockId);
+    }
+
+    private void RemoveStockFromStore(int index)
+    {
+        Stocks = _stockIdModelBuilder.RemoveStockFromStore(index);
+        this.StateHasChanged();
+    }
+}

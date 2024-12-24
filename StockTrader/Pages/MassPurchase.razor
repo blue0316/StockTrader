@@ -1,0 +1,107 @@
+﻿@page "/masspurchase"
+@using StockTrader.Models;
+@using StockTrader.Pages.Components;
+
+<div class="content-body">
+    <h2>Purchase Stock</h2>
+    <p>Use this page to mass purchase on a stock</p>
+    <div class="input-outer">
+        <div class="input-number">
+            <p>Input the price you want to purchase</p>
+            <input type="number" step="50" @bind="purchasePrice" />
+            <div class="increment-options">
+                    <button class="btn btn-primary" @onclick="e => this.IncrementPurchasePrice(100)">+100</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementPurchasePrice(1000)">+1000</button>
+            </div>
+        </div>
+        <div class="input-number">
+            <p>Input the ID of the stock you are buying on</p>
+            <input type="number" @bind="stockId" />
+        </div>
+    </div>
+
+    <div>
+        <input type="checkbox" value="false" id="Extend" @onchange="CheckBoxSelection" checked="@ExtendStockInfo" />
+        <label for="Extend">Show Stock Id's?</label>
+        <StockIdComponent Extend=@ExtendStockInfo ParentOnClickFunction="SetStockIdValue" />
+    </div>
+    <button class="btn btn-primary" @onclick="PurchaseOnStocks">Purchase</button>
+    <div>
+        <input type="radio" value=true id="Allow" @onchange="RadioSelection" checked=@RadioValue />
+        <label for="Allow">Allow API Calls</label>
+        <input type="radio" value=false id="Block" @onchange="RadioSelection" checked=@(!RadioValue) />
+        <label for="Block">Block API Calls</label>
+    </div>
+    <PurchaseView Purchases=@purchases />
+</div>
+
+@code {
+    public int stockId { get; set; }
+    public int purchasePrice { get; set; }
+    public string token { get; set; }
+    private bool RadioValue { get; set; } = true;
+    private bool ExtendStockInfo { get; set; } = true;
+
+    public List<PurchaseViewModel> purchases = new List<PurchaseViewModel>();
+
+    private async Task PurchaseOnStocks()
+    {
+        token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+        purchases = await ApiGateway.FetchStocks(stockId, purchasePrice, token);
+
+        for (var i = 0; i < purchases.Count; i++)
+        {
+            if (RadioValue && purchases[i].TimeRemaining < 3600 && purchases[i].TimeRemaining > 0)
+            {
+                purchases[i].Status = await ApiGateway.PurchaseOnStock(purchases[i].TradeId, purchasePrice, token);
+
+                purchases[i].PurchasePrice = purchasePrice;
+                this.StateHasChanged();
+                if (purchases[i].Status != "Success")
+                {
+                    ErrorAllPurchases(i);
+                    break;
+                }
+                await Task.Delay(1000);
+            }
+            else
+            {
+                ErrorAllPurchases(i);
+                RadioValue = false;
+
+            }
+        }
+    }
+
+    private void ErrorAllPurchases(int index)
+    {
+        for (var i = index; i < purchases.Count; i++)
+        {
+            purchases[i].Status = "Error";
+            purchases[i].Pending = false;
+            purchases[i].TimeRemaining = 0;
+        }
+    }
+
+    void RadioSelection(ChangeEventArgs args)
+    {
+        RadioValue = args.Value.ToString() == "true";
+        this.StateHasChanged();
+    }
+
+    void CheckBoxSelection()
+    {
+        ExtendStockInfo = !ExtendStockInfo;
+        this.StateHasChanged();
+    }
+
+    void SetStockIdValue(int selectedStockId)
+    {
+        stockId = selectedStockId;
+    }
+
+    void IncrementPurchasePrice(int increase)
+    {
+        purchasePrice += increase;
+    }
+}

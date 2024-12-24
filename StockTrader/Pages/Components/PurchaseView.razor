@@ -1,0 +1,73 @@
+﻿@using StockTrader.Models;
+@using System.Threading;
+
+<div class="purchaseView-outer @FullScreen">
+    <div class="table table-centre">
+        <table class="fullWidth">
+            <tr>
+                <th>Purchase Number</th>
+                <th>Stock Id</th>
+                <th>Purchase Status</th>
+                <th>Purchase Price</th>
+                <th>Time Remaining</th>
+            </tr>
+            @for (var i = 0; i < Purchases.Count; i++)
+            {
+                <tr>
+                    <th>@(@i + 1)</th>
+                    <th>@Purchases[i].TradeId</th>
+                    @if (Purchases[i].Pending)
+                    {
+                        <th class="@Purchases[i].Status">@Purchases[i].Status <span class="spinner-border spinner-small"></span></th>
+                    }
+                    else
+                    {
+                        <th class="@Purchases[i].Status">@Purchases[i].Status <span class="spinner-solid spinner-small"></span></th>
+                    }
+                    <th>@Purchases[i].PurchasePrice</th>
+                    <th>@Purchases[i].TimeRemaining</th>
+                </tr>
+            }
+        </table>
+    </div>
+</div>
+
+@code{
+
+    [Parameter]
+    public List<PurchaseViewModel> Purchases { get; set; }
+
+    [Parameter]
+    public string FullScreen { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var timer = new Timer(new TimerCallback(_ =>
+        {
+            if (Purchases.Count != 0)
+            {
+
+                if (Purchases.Max(x => x.TimeRemaining) != -1)
+                {
+
+                    UpdateTimes();
+                    InvokeAsync(() =>
+                {
+                    StateHasChanged();
+                });
+                }
+            }
+        }), null, 1000, 2000);
+    }
+
+    void UpdateTimes()
+    {
+        foreach (var stock in Purchases)
+        {
+            if (stock.TimeRemaining > -1)
+            {
+                stock.TimeRemaining -= 2;
+            }
+        }
+    }
+}

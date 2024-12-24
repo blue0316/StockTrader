@@ -1,0 +1,204 @@
+﻿@page "/masspurchasebyrarity"
+@using StockTrader.Models;
+@using StockTrader.Models.SearchOptions
+@using StockTrader.Pages.Components;
+
+<div class="content-body">
+    <h2>Purchase Stock</h2>
+    <p>Use this page to mass purchase on rare or common stocks</p>
+    <div>
+        <div class="centre-aligned">
+            <div class="centre-aligned-inner">
+                <p>Input the price you want to purchase</p>
+                <input type="number" step="50" @bind="purchasePrice" />
+                <div class="increment-options">
+                    <button class="btn btn-primary" @onclick="e => this.IncrementPurchasePrice(100)">+100</button>
+                    <button class="btn btn-primary" @onclick="e => this.IncrementPurchasePrice(1000)">+1000</button>
+                </div>
+            </div>
+            <div class="centre-aligned-inner">
+                <p>Select either rare or common</p>
+                <select name="rarityId" @onchange="RaritySelection" class="select">
+                    <option value="1">Rare</option>
+                    <option value="0">Common</option>
+                </select>
+            </div>
+        </div>
+        <div class="select-options">
+            <div class="">
+                <button @onclick="e => this.ClickOnShowLeague()" class="optional-btn @(HasClickedOnShowLeague? "GreyedOut": "")">
+                    Select a company stock
+                </button>
+            </div>
+            <div class="@(ShowLeagueOptions? "": "collapse")">
+                <select name="leagueId" @onchange="LeagueSelection" class="select">
+                    <option value="0">Select a stock</option>
+                    @foreach (var league in Leagues)
+                    {
+                        <option value=@league.Value>@league.Key</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="select-options">
+            <div>
+                <button @onclick="e => this.ClickOnShowPosition()" class="optional-btn @(HasClickedOnShowPositions? "GreyedOut": "")">
+                    Select stock by their positions
+                </button>
+            </div>
+            <div class="@(ShowPositionOptions? "": "collapse" )">
+                <select name="positionId" @onchange="PositionSelection" class="select">
+                    <option value="0">Select a position</option>
+                    @foreach (var position in Positions)
+                    {
+                        <option value=@position>@position</option>
+                    })
+                </select>
+            </div>
+        </div>
+        <div class="select-options">
+            <div>
+                <button @onclick="e => this.ClickOnShowNation()" class="optional-btn @(HasClickedOnShowNationality? "GreyedOut": "")">
+                    Select market index
+                </button>
+            </div>
+            <div class="@(ShowNationalityOptions? "": "collapse" )">
+                <select name="nationId" @onchange="NationSelection" class="select">
+                    <option value="0">Select an index</option>
+                    @foreach (var nation in Nations)
+                    {
+                        <option value=@nation.Value>@nation.Key</option>
+                    })
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="PurchaseOnStocks">Purchase</button>
+    <div>
+        <input type="radio" value=true id="Allow" @onchange="RadioSelection" checked=@RadioValue />
+        <label for="Allow">Allow API Calls</label>
+        <input type="radio" value=false id="Block" @onchange="RadioSelection" checked=@(!RadioValue) />
+        <label for="Block">Block API Calls</label>
+    </div>
+    <PurchaseView Purchases=@purchases />
+</div>
+
+@code {
+    public int leagueId { get; set; }
+    public int rarityId { get; set; } = 1;
+    public string positionSelection { get; set; }
+    public int nationId { get; set; }
+    public int purchasePrice { get; set; }
+    public string token { get; set; }
+    private bool RadioValue { get; set; } = true;
+
+    private bool ShowLeagueOptions { get; set; } = false;
+    private bool HasClickedOnShowLeague { get; set; } = false;
+
+    private bool ShowPositionOptions { get; set; } = false;
+    private bool HasClickedOnShowPositions { get; set; } = false;
+
+    private bool ShowNationalityOptions { get; set; } = false;
+    private bool HasClickedOnShowNationality { get; set; } = false;
+
+    private List<string> Positions = new StockPositions().Positions;
+    private Dictionary<string, string> Leagues = new Leagues().LeagueOptions;
+    private Dictionary<string, int> Nations = new Nations().NationOptions;
+
+    public List<PurchaseViewModel> purchases = new List<PurchaseViewModel>();
+
+    private async Task PurchaseOnStocks()
+    {
+        token = await ProtectedSessionStore.GetAsync<string>("accessToken");
+        purchases = await ApiGateway.FetchStocksByLeague(leagueId, rarityId, purchasePrice, token, positionSelection, nationId);
+
+        for (var i = 0; i < purchases.Count; i++)
+        {
+            if (RadioValue && purchases[i].TimeRemaining < 3600 && purchases[i].TimeRemaining > 0)
+            {
+                purchases[i].Status = await ApiGateway.PurchaseOnStock(purchases[i].TradeId, purchasePrice, token);
+
+                purchases[i].PurchasePrice = purchasePrice;
+                this.StateHasChanged();
+                if (purchases[i].Status != "Success")
+                {
+                    ErrorAllPurchases(i);
+                    break;
+                }
+                await Task.Delay(1000);
+            }
+            else
+            {
+                ErrorAllPurchases(i);
+                RadioValue = false;
+
+            }
+        }
+    }
+
+    private void ErrorAllPurchases(int index)
+    {
+        for (var i = index; i < purchases.Count; i++)
+        {
+            purchases[i].Status = "Error";
+            purchases[i].Pending = false;
+            purchases[i].TimeRemaining = 0;
+        }
+    }
+
+    void RadioSelection(ChangeEventArgs args)
+    {
+        RadioValue = args.Value.ToString() == "true";
+        this.StateHasChanged();
+    }
+
+
+    void LeagueSelection(ChangeEventArgs args)
+    {
+        leagueId = int.Parse(args.Value.ToString());
+        this.StateHasChanged();
+    }
+
+    void NationSelection(ChangeEventArgs args)
+    {
+        nationId = int.Parse(args.Value.ToString());
+        this.StateHasChanged();
+    }
+
+    void RaritySelection(ChangeEventArgs args)
+    {
+        rarityId = int.Parse(args.Value.ToString());
+        this.StateHasChanged();
+    }
+
+    void PositionSelection(ChangeEventArgs args)
+    {
+        positionSelection = args.Value.ToString();
+        this.StateHasChanged();
+    }
+
+    void ClickOnShowLeague()
+    {
+        ShowLeagueOptions = !ShowLeagueOptions;
+        HasClickedOnShowLeague = true;
+    }
+
+    void ClickOnShowPosition()
+    {
+        ShowPositionOptions = !ShowPositionOptions;
+        HasClickedOnShowPositions = true;
+    }
+
+    void ClickOnShowNation()
+    {
+        ShowNationalityOptions = !ShowNationalityOptions;
+        HasClickedOnShowNationality = true;
+    }
+
+    void IncrementPurchasePrice(int increase)
+    {
+        purchasePrice += increase;
+    }
+}
